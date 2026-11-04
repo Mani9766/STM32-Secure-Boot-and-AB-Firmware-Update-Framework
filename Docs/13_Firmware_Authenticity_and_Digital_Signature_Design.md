@@ -818,3 +818,273 @@ The initial implementation will use:
 
 Public-key rotation, revocation, HSM integration and production
 key-management infrastructure remain future enhancements.
+
+## 8. Cryptographic Library Evaluation
+
+After identifying ECDSA P-256 with SHA-256 as the primary
+digital-signature candidate, the next step is to evaluate suitable
+cryptographic libraries for implementation on STM32F407.
+
+The library must provide reliable ECDSA signature verification,
+support the selected elliptic curve and integrate with the existing
+STM32CubeIDE bootloader project.
+
+### 8.1 Evaluation Requirements
+
+The following requirements will be considered during library selection:
+
+1. Support for ECDSA using NIST P-256 (secp256r1).
+2. Support for SHA-256 or compatibility with an external SHA-256
+   implementation.
+3. Signature verification functionality.
+4. Compatibility with ARM Cortex-M4.
+5. Compatibility with the STM32CubeIDE GCC toolchain.
+6. Reasonable Flash and RAM requirements.
+7. Controlled stack usage during cryptographic operations.
+8. Minimal dependency on dynamic memory allocation.
+9. Well-defined public-key and signature data formats.
+10. Availability of documentation, examples and test vectors.
+11. Maintainability and suitability for embedded firmware projects.
+
+The evaluation will initially focus on signature verification because
+the private-key signing operation will be performed on the host PC.
+
+### 8.2 Candidate Libraries
+
+The following libraries have been identified for evaluation.
+
+#### A. STMicroelectronics X-CUBE-CRYPTOLIB
+
+X-CUBE-CRYPTOLIB is the STM32 cryptographic library provided by
+STMicroelectronics.
+
+It provides cryptographic functionality for STM32 microcontrollers
+and includes implementations for Cortex-M based devices.
+
+The supported algorithms include:
+
+- SHA-256 and other SHA-2 variants.
+- ECDSA with NIST P-256 and other supported curves.
+- EdDSA, including Ed25519.
+- RSA signature generation and verification.
+- Other cryptographic primitives.
+
+The library provides examples for GCC-based development environments,
+including STM32CubeIDE.
+
+**Advantages:**
+
+- Developed specifically for the STM32 ecosystem.
+- Explicit support for STM32F4 series devices.
+- Support for ECDSA P-256 and SHA-256.
+- Provides a dedicated cryptographic interface for STM32 Cortex-M
+  processors.
+- Supports other algorithms if future requirements change.
+
+**Considerations:**
+
+- Understand the CMOX API and integration requirements.
+- Identify the required library components and dependencies.
+- Evaluate the generated Flash and RAM footprint.
+- Measure stack consumption and signature-verification execution time.
+- Verify compatibility with the existing STM32CubeIDE project.
+
+Official references:
+
+[X-CUBE-CRYPTOLIB – STMicroelectronics](https://www.st.com/en/embedded-software/x-cube-cryptolib.html)
+
+[STM32 Cryptographic Library Overview](https://wiki.st.com/stm32mcu/wiki/Security:Cryptographic_library_Overview)
+
+[ST X-CUBE-CRYPTOLIB Data Brief](https://www.st.com/resource/en/data_brief/x-cube-cryptolib.pdf)
+
+#### B. Mbed TLS
+
+Mbed TLS is an established cryptographic library designed for
+embedded systems and constrained environments.
+
+It provides cryptographic primitives and protocol implementations,
+including elliptic-curve operations and digital-signature
+functionality.
+
+Relevant capabilities include:
+
+- ECDSA signature generation and verification.
+- NIST P-256 elliptic-curve support.
+- SHA-256.
+- Configurable cryptographic components.
+
+**Advantages:**
+
+- Broad embedded-system adoption.
+- Well-documented APIs.
+- Supports ECDSA P-256.
+- Provides configurable features to reduce binary and memory footprint.
+- Supports multiple cryptographic algorithms.
+
+**Considerations:**
+
+- Configuration must be optimized for a bootloader-only use case.
+- Unused TLS, X.509 and other components should be excluded where
+  possible.
+- Evaluate the selected maintained release and its API compatibility.
+- Measure Flash, RAM and stack consumption on STM32F407.
+- Review dynamic memory requirements and error handling.
+
+Official references:
+
+[Mbed TLS Documentation](https://mbed-tls.readthedocs.io/)
+
+[Mbed TLS – Reducing Memory and Storage Footprint](https://mbed-tls.readthedocs.io/en/latest/kb/how-to/reduce-polarssl-memory-and-storage-footprint/)
+
+[Mbed TLS GitHub Repository](https://github.com/Mbed-TLS/mbedtls)
+
+#### C. micro-ecc
+
+micro-ecc is a lightweight C implementation of elliptic-curve
+cryptography.
+
+It supports ECDSA and ECDH and is designed for embedded
+microcontrollers.
+
+Relevant characteristics include:
+
+- Support for secp256r1 (NIST P-256).
+- Written in C.
+- Optional ARM and Thumb assembly optimizations.
+- No dynamic memory allocation.
+- Small-footprint implementation.
+
+**Advantages:**
+
+- Lightweight compared with a general-purpose cryptographic library.
+- Written in C and suitable for embedded integration.
+- Supports the required P-256 curve.
+- No dynamic memory allocation.
+- Provides a focused ECDSA implementation.
+
+**Considerations:**
+
+- Does not provide a complete SHA-256 implementation.
+- The existing project SHA-256 implementation must be retained
+  or integrated separately.
+- Signature and public-key encoding must be handled consistently.
+- Security review, test-vector validation and maintenance history
+  must be evaluated before adoption.
+- Integration and regression testing will be required.
+
+Official reference:
+
+[micro-ecc GitHub Repository](https://github.com/kmackay/micro-ecc)
+
+### 8.3 Library Comparison
+
+| Evaluation criteria | X-CUBE-CRYPTOLIB | Mbed TLS | micro-ecc |
+|---------------------|------------------|----------|-----------|
+| ECDSA P-256 | Yes | Yes | Yes |
+| SHA-256 | Yes | Yes | No |
+| STM32F4 support | Yes | Requires integration | Requires integration |
+| STM32CubeIDE GCC | Examples available | GCC-compatible | GCC-compatible |
+| Dynamic memory | To be evaluated | Configurable | No dynamic allocation |
+| Library scope | General cryptographic library | General cryptographic library | Focused ECC library |
+| Integration complexity | To be evaluated | To be evaluated | To be evaluated |
+| Resource consumption | To be measured | To be measured | To be measured |
+
+The comparison identifies supported capabilities rather than
+assuming that one library has better performance than another.
+
+Actual resource consumption and execution time must be measured
+using the same STM32F407 hardware and compiler configuration.
+
+### 8.4 Proposed Evaluation Strategy
+
+The libraries will be evaluated in the following order:
+
+1. X-CUBE-CRYPTOLIB
+2. Mbed TLS
+3. micro-ecc
+
+X-CUBE-CRYPTOLIB will be evaluated first because of its direct
+STM32F4 support and integration with the STM32CubeIDE ecosystem.
+
+Mbed TLS will be considered as an alternative if integration,
+resource usage or API requirements make it more suitable.
+
+micro-ecc will be considered if a smaller and more focused
+ECDSA implementation is preferred.
+
+### 8.5 Performance and Memory Benchmarking
+
+The selected library must be evaluated on the actual STM32F407
+hardware.
+
+The following parameters will be measured:
+
+| Parameter | Measurement objective |
+|-----------|------------------------|
+| Flash consumption | Additional code and constant-data size |
+| Static RAM | Global and static memory requirements |
+| Stack consumption | Peak stack usage during signature verification |
+| Verification time | Execution time for one P-256 signature verification |
+| CPU utilization | Processing cycles required for verification |
+| Dependencies | Required modules, runtime support and configuration |
+| Integration | Compatibility with the existing bootloader build |
+
+For a fair comparison, the libraries should use equivalent
+compiler optimization settings and the same signature test vectors.
+
+Verification time can be measured using the Cortex-M4 DWT cycle
+counter or a hardware timer.
+
+Flash and static RAM consumption will be obtained from the
+linker map file.
+
+Peak stack usage will be measured using an appropriate stack
+monitoring technique.
+
+### 8.6 Functional Validation Requirements
+
+Before integrating a library into the bootloader, its verification
+functionality must pass standalone tests.
+
+The test cases will include:
+
+1. Verification of a valid ECDSA P-256 signature.
+2. Rejection of an invalid signature.
+3. Rejection when a different public key is supplied.
+4. Rejection when signed data is modified.
+5. Rejection of malformed signature input.
+6. Rejection of invalid public-key data.
+7. Validation using known cryptographic test vectors.
+
+The host-side signing implementation and STM32 verification
+implementation must use identical data serialization and signature
+encoding conventions.
+
+### 8.7 Preliminary Library Preference
+
+X-CUBE-CRYPTOLIB is the preferred first candidate for evaluation
+because ST provides explicit STM32F4 support and examples for
+STM32CubeIDE.
+
+However, final selection will depend on:
+
+- Successful integration into the existing bootloader.
+- Functional verification results.
+- Flash and RAM consumption.
+- Peak stack usage.
+- Signature-verification execution time.
+- API and data-format compatibility.
+
+No library is considered finally selected until these checks
+have been completed and the results documented.
+
+### 8.8 Expected Outcome
+
+The outcome of this evaluation will be a documented selection
+of the cryptographic library used for ECDSA P-256 signature
+verification on STM32F407.
+
+The selected implementation must provide a reliable verification
+mechanism without compromising the existing bootloader,
+memory layout, SHA-256 integrity verification or A/B update
+functionality.
