@@ -243,3 +243,93 @@ in a signed manifest.
 The table compares standard key and signature representations.
 Actual Flash, RAM, stack and execution-time requirements depend on
 the selected library and implementation.
+
+## 5. Why ECDSA P-256 Is Preferred for This Project
+
+RSA was initially considered as a possible firmware-authentication
+mechanism because of its maturity and broad industry adoption.
+
+However, ECDSA P-256 provides a more compact signature and public-key
+representation while offering approximately 128-bit security strength.
+
+For an STM32F407-based bootloader, reducing cryptographic storage
+requirements is beneficial because the bootloader has limited Flash and
+RAM resources.
+
+The selection is also supported by existing embedded secure-boot
+implementations.
+
+### 5.1 Industry and Embedded Ecosystem References
+
+**STMicroelectronics X-CUBE-SBSFU**
+
+STMicroelectronics provides an STM32 Secure Boot and Secure Firmware
+Update reference implementation.
+
+Its documentation describes ECDSA using the NIST P-256 curve together
+with SHA-256 for firmware authentication.
+
+This is particularly relevant because the reference solution includes
+STM32F4-family support.
+
+Reference:
+[STMicroelectronics UM2262 – X-CUBE-SBSFU User Manual](https://www.st.com/resource/en/user_manual/um2262-getting-started-with-the-xcubesbsfu-stm32cube-expansion-package-stmicroelectronics.pdf)
+
+**MCUboot**
+
+MCUboot is an established open-source secure bootloader for
+microcontrollers.
+
+It supports several firmware-image signature algorithms, including
+ECDSA P-256, RSA-2048, RSA-3072 and Ed25519.
+
+Its image-signing utility also supports host-side key generation
+and firmware signing.
+
+References:
+[MCUboot – Signed Images](https://github.com/mcu-tools/mcuboot/blob/main/docs/signed_images.md)
+
+[MCUboot – Image Tool](https://github.com/mcu-tools/mcuboot/blob/main/docs/imgtool.md)
+
+### 5.2 Security-Strength Comparison
+
+According to NIST SP 800-57 Part 1 Revision 5, the approximate
+128-bit security-strength category corresponds to:
+
+- RSA: 3072-bit key.
+- ECC: 256-bit curve parameter.
+
+Therefore, ECDSA P-256 and RSA-3072 are the appropriate comparison
+for approximately equivalent classical security strength.
+
+RSA-2048 provides approximately 112-bit security strength and should
+not be directly compared with P-256 as an equal-strength alternative.
+
+Reference:
+[NIST SP 800-57 Part 1 Revision 5](https://doi.org/10.6028/NIST.SP.800-57pt1r5)
+
+### 5.3 Decision
+
+ECDSA P-256 with SHA-256 is selected as the primary candidate for
+the STM32F407 firmware-authentication implementation.
+
+The selection is based on:
+
+- Approximately 128-bit security strength.
+- Compact public-key and signature representation.
+- Compatibility with the existing SHA-256 firmware-integrity mechanism.
+- Availability in established STM32 secure-boot reference implementations.
+- Support in embedded cryptographic ecosystems.
+
+RSA-PSS with SHA-256 remains a technically valid alternative.
+
+The decision does not imply that ECDSA is always faster than RSA.
+Actual verification time, Flash consumption, RAM usage and stack
+requirements must be measured on the target hardware before final
+cryptographic-library selection.
+
+Ed25519 remains an alternative for further evaluation if library
+compatibility and resource requirements justify it.
+
+**Final implementation selection remains subject to cryptographic-library
+evaluation and STM32F407 hardware benchmarking.**
