@@ -75,3 +75,56 @@ verification and adds digital-signature-based authenticity verification.
 
 Neither mechanism provides firmware confidentiality or cryptographically
 enforced anti-rollback protection by itself.
+
+## 3. Firmware Authentication Approaches
+
+There are two common approaches to cryptographic firmware authentication.
+
+### 3.1 Symmetric-Key Authentication (HMAC)
+
+HMAC uses a shared secret key to generate and verify a message
+authentication code.
+
+Both the host-side signing tool and the target device must possess the
+same secret key.
+
+**Advantages:**
+- Relatively simple implementation.
+- Lower computational requirements compared with many public-key operations.
+- Small authentication tag.
+
+**Limitations:**
+- The secret key must be protected on every device that performs verification.
+- Compromise of a shared device key can enable unauthorized firmware
+  authentication.
+- Secure provisioning and distribution of the shared key become important
+  operational challenges.
+
+### 3.2 Asymmetric-Key Authentication (Digital Signature)
+
+Asymmetric authentication uses a private/public key pair.
+
+The firmware developer uses the private key to generate a digital signature.
+The bootloader uses the corresponding public key to verify it.
+
+**Advantages:**
+- The private signing key does not need to be stored on the target device.
+- The public key can be distributed to multiple devices.
+- Compromise of one device's public key does not reveal the private signing key.
+- Supports centralized firmware signing and distributed verification.
+
+**Limitations:**
+- Greater computational requirements than HMAC.
+- Requires cryptographic-library integration.
+- Private-key protection and public-key provisioning must be addressed.
+
+### 3.3 Selected Approach
+
+Asymmetric digital-signature-based authentication is preferred for this
+project.
+
+The firmware signing operation will be performed on the host PC, while
+signature verification will be performed by the STM32F407 bootloader.
+
+The private key will remain outside the target device. Only the trusted
+public key will be provisioned in the bootloader.
