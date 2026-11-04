@@ -333,3 +333,272 @@ compatibility and resource requirements justify it.
 
 **Final implementation selection remains subject to cryptographic-library
 evaluation and STM32F407 hardware benchmarking.**
+
+## 6. Proposed Firmware Signing and Verification Workflow
+
+The proposed architecture separates firmware signing from firmware
+verification.
+
+Firmware signing is performed on the authorized host PC using a private
+key. Firmware authentication is performed by the STM32F407 bootloader
+using the corresponding trusted public key.
+
+The private key is never stored on the STM32 device.
+
+### 6.1 Signing and Verification Roles
+
+| Component | Responsibility |
+|-----------|----------------|
+| Host PC | Calculate firmware SHA-256 and generate digital signature |
+| Private key | Sign the firmware manifest |
+| Firmware package | Carry firmware image, manifest and signature |
+| STM32 bootloader | Verify signature and firmware integrity |
+| Public key | Verify the authenticity of the signed manifest |
+
+### 6.2 Signed Firmware Manifest
+
+A firmware manifest contains the security-relevant information associated
+with the firmware image.
+
+The proposed manifest fields include:
+
+| Field | Description |
+|-------|-------------|
+| Manifest format version | Identifies the manifest structure version |
+| Signature algorithm | Identifies the supported digital-signature algorithm |
+| Hash algorithm | Identifies the firmware digest algorithm |
+| Key identifier | Identifies the trusted public key used for verification |
+| Firmware version | Identifies the firmware release version |
+| Image size | Specifies the firmware binary size |
+| Target device identifier | Identifies the compatible target device or board |
+| Target slot / execution address | Identifies the intended firmware execution location |
+| Firmware SHA-256 | Contains the calculated firmware image digest |
+
+The exact manifest serialization format, field widths, byte order and
+signature representation will be finalized during implementation.
+
+The manifest must use a deterministic, well-defined byte representation.
+Compiler-dependent C structure padding must not be used as the signing
+format.
+
+### 6.3 Host-Side Firmware Signing Process
+
+The host-side signing utility performs the following operations:
+
+1. Read the compiled firmware binary.
+2. Calculate the SHA-256 digest of the firmware image.
+3. Construct the firmware manifest using the image digest and associated
+   firmware information.
+4. Serialize the manifest using the defined byte format.
+5. Generate a digital signature over the serialized manifest using the
+   authorized private key.
+6. Generate the signed firmware package containing the firmware image,
+   manifest and signature.
+
+For the proposed ECDSA P-256 implementation, SHA-256 will also be used
+by the ECDSA signing operation to hash the serialized manifest.
+
+The firmware image digest and the manifest digest serve different purposes:
+
+- Firmware digest: Identifies the contents of the firmware image.
+- Manifest digest: Represents the manifest data covered by the
+  digital signature.
+
+The private key remains on the authorized host-side signing environment
+and must not be included in the firmware package.
+
+### 6.4 Firmware Package Structure
+
+The proposed logical package consists of three components:
+
+```text
+Signed Firmware Package
+|
++-- Firmware Manifest
+|     |
+|     +-- Manifest format version
+|     +-- Signature algorithm
+|     +-- Hash algorithm
+|     +-- Key identifier
+|     +-- Firmware version
+|     +-- Image size
+|     +-- Target device identifier
+|     +-- Target slot / execution address
+|     +-- Firmware SHA-256 digest
+|
++-- Digital Signature
+|     |
+|     +-- Signature generated using private key
+|
++-- Firmware Binary
+      |
+      +-- Executable firmware image
+```
+### 6.5 STM32 Bootloader Authentication Process
+After receiving a staged firmware package, the STM32 bootloader performs
+the following operations:
+1. Read the package header and manifest.
+2. Perform initial structural, length and memory-boundary checks.
+3. Verify that the signature algorithm and manifest format are supported.
+4. Identify the applicable trusted public key.
+5. Verify the digital signature over the serialized manifest.
+6. Calculate SHA-256 over the staged firmware image.
+7. Compare the calculated firmware digest against the digest contained
+   in the authenticated manifest.
+8. Validate target-device compatibility, image size and firmware
+   version policy.
+9. Proceed with inactive-slot programming only if all required checks
+   succeed.
+The bootloader must not trust manifest fields before successful signature
+verification, except for limited parsing needed to safely locate and
+validate the manifest.
+
+Unsupported algorithms, invalid signatures, malformed packages and
+invalid image boundaries must result in rejection.
+### 6.6 Integration with Existing A/B Firmware Update Flow
+The digital-signature verification mechanism will be integrated into
+the existing STM32 A/B update architecture.
+
+The proposed update sequence is:
+```text
+Running Application
+        |
+        v
+Update Notification
+        |
+        v
+Download / Staging Area
+        |
+        v
+Reset into Bootloader
+        |
+        v
+Read Firmware Package
+        |
+        v
+Validate Package Structure and Boundaries
+        |
+        v
+Verify Digital Signature
+        |
+        +------ Invalid ------> Reject Firmware
+        |
+        v
+Calculate Firmware SHA-256
+        |
+        +------ Mismatch -----> Reject Firmware
+        |
+        v
+Validate Firmware Version and Target
+        |
+        v
+Select Inactive Firmware Slot
+        |
+        v
+Erase and Program Inactive Slot
+        |
+        v
+Verify Programmed Image SHA-256
+        |
+        +------ Mismatch -----> Reject Candidate
+        |
+        v
+Persist Authenticated Manifest and Signature
+        |
+        v
+Append BOOT_PENDING Metadata Record
+        |
+        v
+Trial Boot
+        |
+        +------ Confirmation ------> CONFIRMED
+        |
+        +------ Watchdog Reset ----> Rollback
+```
+The inactive slot must not be erased or programmed until the staged
+firmware has passed signature verification, digest verification and
+the required compatibility checks.
+
+The existing destination-image SHA-256 verification, BOOT_PENDING
+state, application confirmation and rollback mechanisms will be retained.
+### 6.7 Authentication During Normal Boot
+Firmware authenticity must not be checked only during the update process.
+
+The authenticated manifest and signature associated with each installed
+firmware image must remain available to the bootloader.
+
+During normal boot, the bootloader should:
+1. Read the selected slot's authenticated manifest and signature.
+2. Verify the signature using the trusted public key.
+3. Validate the firmware image boundaries and size.
+4. Calculate SHA-256 over the selected firmware image.
+5. Compare the calculated digest against the digest in the authenticated
+   manifest.
+6. Transfer execution only after successful verification and the
+   existing boot-state checks.
+This ensures that an image modified after installation cannot become
+trusted merely because it was previously accepted.
+
+The storage location and lifecycle of per-slot signed manifests must be
+defined without compromising the existing metadata journal.
+
+The current 60-byte metadata journal records should be preserved where
+practical. The signed manifest and signature may be maintained as
+separate per-slot authentication data.
+### 6.8 Authentication Failure Handling
+The following conditions must result in firmware rejection:
+- Missing firmware signature.
+- Invalid digital signature.
+- Firmware signed with an unauthorized private key.
+- Modified firmware manifest.
+- Firmware SHA-256 mismatch.
+- Unsupported signature or manifest format.
+- Invalid image size or memory boundaries.
+- Incompatible target-device information.
+An unauthenticated candidate must never be promoted to BOOT_PENDING
+or executed.
+
+If candidate authentication fails, the previously confirmed firmware
+should remain the boot target, provided it passes the existing boot
+validation checks.
+
+If the selected installed image fails authenticity or integrity
+verification, the bootloader must not execute it. Recovery behavior
+must follow the defined fail-safe and fallback policy.
+### 6.9 Security Properties and Limitations
+The proposed digital-signature mechanism provides:
+- Firmware authenticity verification.
+- Integrity protection for the signed manifest.
+- Cryptographic binding between firmware identification fields and
+  the firmware digest.
+- Verification using a trusted public key without storing the private
+  signing key on the target MCU.
+The mechanism does not independently provide:
+- Firmware confidentiality.
+- Cryptographically enforced anti-rollback protection.
+- Protection against private-key compromise.
+- Protection against physical replacement or modification of the
+  bootloader trust anchor.
+- Cryptographic authentication of the existing mutable metadata
+  journal unless separately addressed.
+These properties require additional security controls and are outside
+the immediate scope of firmware-signature implementation.
+
+---
+
+## Two important architecture decisions to remember
+
+**1. Verify the signature on every normal boot.**
+
+This is important. Imagine an attacker modifies the installed firmware after a successful update. If your bootloader checks only the mutable metadata SHA-256 digest, the attacker might replace both the firmware and digest. Keeping the signed manifest with each slot allows the bootloader to authenticate the image again at startup.
+
+**2. Your 60-byte metadata record needs special consideration.**
+
+Your existing metadata record contains the firmware digest and boot state information. We should not casually increase its size or change the journal implementation. The signed manifest and signature storage should be designed alongside the existing per-slot metadata.
+
+One more point specific to your project: because Slot A and Slot B are linked at different execution addresses, the signed manifest must bind the image to its intended slot or execution address unless we later change to a slot-independent image design.
+
+**Next document section:** 
+## 7. Trusted Public-Key Management and Protection`
+
+This will explain key generation, private-key protection, public-key provisioning, key storage in STM32 flash, and what happens if we need to replace a compromised signing key.
