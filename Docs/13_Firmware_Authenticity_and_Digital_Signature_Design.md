@@ -598,7 +598,223 @@ Your existing metadata record contains the firmware digest and boot state inform
 
 One more point specific to your project: because Slot A and Slot B are linked at different execution addresses, the signed manifest must bind the image to its intended slot or execution address unless we later change to a slot-independent image design.
 
-**Next document section:** 
-## 7. Trusted Public-Key Management and Protection`
+## 7. Trusted Public-Key Management and Protection
 
-This will explain key generation, private-key protection, public-key provisioning, key storage in STM32 flash, and what happens if we need to replace a compromised signing key.
+Digital-signature-based firmware authentication depends on the secure
+management of cryptographic keys.
+
+The proposed architecture uses an asymmetric key pair consisting of
+a private signing key and a corresponding public verification key.
+
+The private key is used by the authorized firmware signing environment.
+The public key is provisioned in the STM32F407 bootloader and is used
+to verify firmware signatures.
+
+The public key does not need to remain confidential. However, its
+authenticity and integrity must be protected because replacing the
+trusted public key could allow unauthorized firmware to be accepted.
+
+### 7.1 Private-Key Management
+
+The private key is the most sensitive asset in the firmware signing
+architecture.
+
+Anyone possessing the authorized private key may be able to generate
+firmware signatures that the bootloader accepts.
+
+The following practices are proposed:
+
+- Generate the private key using an established cryptographic tool or
+  library.
+- Keep the private key outside the STM32 target device.
+- Never include the private key in the application firmware,
+  bootloader, firmware package or Git repository.
+- Restrict access to the private key to the authorized signing
+  environment.
+- Store the private key in an encrypted and access-controlled location.
+- Maintain protected backups to avoid permanent loss of signing
+  capability.
+- Separate development/test keys from production signing keys.
+
+For a production environment, a hardware security module (HSM) or
+equivalent protected key-management solution should be considered
+to prevent direct exposure of the private key.
+
+For the current development implementation, a locally generated
+development key will be used. It must not be treated as a production
+signing key.
+
+### 7.2 Public-Key Management
+
+The corresponding public key is used by the STM32F407 bootloader
+during firmware signature verification.
+
+Unlike the private key, the public key is not confidential.
+
+However, it must be protected against unauthorized replacement or
+modification.
+
+The proposed approach is:
+
+- Generate the public key from the authorized private key.
+- Provision the public key as part of the trusted bootloader image.
+- Store the public key in the protected bootloader region.
+- Make the public key available to the signature-verification module.
+- Prevent normal application and firmware-update operations from
+  modifying the trusted key storage.
+- Document the key identifier, algorithm and key encoding.
+
+For the proposed ECDSA P-256 implementation, the public key is
+represented by the elliptic-curve X and Y coordinates.
+
+The exact public-key encoding will be selected according to the
+cryptographic library requirements.
+
+### 7.3 Public-Key Storage in STM32F407
+
+The current STM32F407 memory architecture reserves:
+
+| Flash region | Address | Purpose |
+|--------------|---------|---------|
+| Sectors 0-1 | 0x08000000 - 0x08007FFF | Bootloader |
+| Sector 2 | 0x08008000 | Slot A metadata |
+| Sector 3 | 0x0800C000 | Slot B metadata |
+| Sector 4 | 0x08010000 | Download / staging |
+| Sector 5 | 0x08020000 | Slot A firmware |
+| Sector 6 | 0x08040000 | Slot B firmware |
+
+The trusted public key will initially be included in the bootloader
+image stored in sectors 0-1.
+
+This approach keeps the trust anchor separate from the application
+firmware, staging area and per-slot metadata.
+
+The public key must not be stored in a region that is erased during
+normal A/B firmware updates.
+
+### 7.4 Flash Write Protection
+
+The STM32F407 provides Flash Write Protection (WRP) using configuration
+option bytes.
+
+Write protection can be enabled for selected Flash sectors to prevent
+their programming or erasure.
+
+The proposed configuration is to protect bootloader sectors 0-1,
+which also contain the trusted public key.
+
+This protection helps prevent accidental or unauthorized modification
+of the bootloader and its embedded trust anchor through normal Flash
+programming operations.
+
+The write-protection configuration must be validated on the actual
+STM32F407 hardware.
+
+### 7.5 Readout Protection (RDP)
+
+The STM32F407 provides Readout Protection (RDP) with three protection
+levels:
+
+- Level 0: No readout protection.
+- Level 1: Readout protection enabled.
+- Level 2: Maximum readout protection.
+
+RDP Level 1 restricts external debug access and access through
+boot-from-RAM and system-memory boot configurations.
+
+When booting from user Flash, user code can still access Flash memory.
+Therefore, RDP Level 1 alone does not prevent application code from
+modifying Flash contents.
+
+Flash Write Protection and Readout Protection serve different purposes
+and should be evaluated together.
+
+RDP Level 2 is irreversible on the STM32F407 and disables interfaces
+including JTAG and SWV. It can permanently restrict debugging and
+device servicing.
+
+Therefore, RDP Level 2 will not be used during development and testing.
+Any production protection configuration requires a separate hardware
+security and recovery assessment.
+
+References:
+
+- STM32F407 Reference Manual RM0090
+- STMicroelectronics AN5156: Introduction to Security for STM32 MCUs
+
+### 7.6 Public-Key Identification
+
+The signed firmware manifest will contain a key identifier.
+
+The key identifier allows the bootloader to identify which trusted
+public key should be used for signature verification.
+
+The bootloader must maintain an authorized public-key list or an
+equivalent trusted-key lookup mechanism.
+
+The key identifier itself is not proof of authenticity. The selected
+public key must successfully verify the digital signature over the
+complete signed manifest.
+
+For the initial implementation, a single trusted public key is
+sufficient.
+
+Support for multiple trusted keys can be introduced as a future
+extension.
+
+### 7.7 Key Rotation and Revocation
+
+Cryptographic signing keys may need to be replaced due to:
+
+- Planned key lifecycle changes.
+- Private-key compromise.
+- Changes in firmware signing infrastructure.
+- Introduction of new cryptographic keys or algorithms.
+
+The current implementation will initially use one provisioned public
+key.
+
+Future key rotation should be designed so that a new public key is
+accepted only after authorization by an existing trusted root key or
+through another explicitly trusted provisioning procedure.
+
+Simply receiving a new public key in a firmware package must never
+cause the bootloader to trust it automatically.
+
+If the original private key is compromised, an alternative trusted
+recovery mechanism is required. This may involve a separately
+provisioned recovery key or controlled physical re-provisioning.
+
+Key revocation and multi-key lifecycle management are not part of the
+initial implementation scope.
+
+### 7.8 Key Management Security Requirements
+
+The following requirements are established for the proposed design:
+
+1. The private signing key must never be stored on the STM32F407.
+2. The private key must not be committed to the source repository.
+3. The public verification key must be provisioned as part of the
+   trusted bootloader.
+4. Normal firmware updates must not modify the trust-anchor storage.
+5. Bootloader Flash sectors must be protected against unintended
+   programming and erase operations.
+6. The bootloader must verify firmware signatures using an authorized
+   public key.
+7. An unknown key identifier must result in authentication failure.
+8. New public keys must not be trusted without an authorized key-update
+   or provisioning procedure.
+9. Development keys and production signing keys must remain separate.
+
+### 7.9 Current Implementation Scope
+
+The initial implementation will use:
+
+- One ECDSA P-256 private signing key on the host PC.
+- One corresponding trusted public key in the STM32F407 bootloader.
+- Host-side firmware signing.
+- Bootloader-side digital-signature verification.
+- Flash Write Protection evaluation for bootloader sectors 0-1.
+
+Public-key rotation, revocation, HSM integration and production
+key-management infrastructure remain future enhancements.
