@@ -1088,3 +1088,33 @@ The selected implementation must provide a reliable verification
 mechanism without compromising the existing bootloader,
 memory layout, SHA-256 integrity verification or A/B update
 functionality.
+
+### Final Signed Firmware Storage Decisions
+
+1. The staging package consists of an 80-byte manifest, a 64-byte
+   ECDSA signature and the firmware binary.
+
+2. The staging layout is:
+   Manifest → Signature → Firmware Image.
+
+3. The installed Slot A and Slot B layout is:
+   Firmware Image → Reserved Space → Manifest → Signature.
+
+4. The manifest and signature occupy the final 144 bytes of each
+   firmware slot at fixed addresses.
+
+5. The existing 60-byte metadata journal remains unchanged initially.
+
+6. The bootloader authenticates staged firmware before installation.
+
+7. The bootloader authenticates the selected installed firmware
+   on every reset before transferring execution.
+
+8. When no update package is available, candidate authentication
+   is skipped. Normal boot authentication is still mandatory.
+
+9. The existing BOOT_PENDING, CONFIRMED and rollback mechanisms
+   are retained.
+
+10. The final layout must be validated against the linker scripts,
+    Flash programming routines and existing staging metadata.
