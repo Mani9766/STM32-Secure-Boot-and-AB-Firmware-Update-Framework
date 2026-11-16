@@ -1,8 +1,11 @@
-# STM32 Secure Boot: Firmware Integrity Verification Using SHA-256 and A/B FOTA
+# STM32 Secure Boot and A/B Firmware Update Framework
 
-A practical STM32F407 project implementing a bootloader, SHA-256 firmware integrity verification, and dual-slot A/B firmware updates.
+A practical STM32F407 project implementing a custom bootloader, SHA-256 firmware integrity verification, and dual-slot A/B firmware updates.
 
-The project demonstrates how a bootloader can validate staged firmware, program an inactive slot, verify the programmed image, trial-boot a candidate, and confirm or roll back based on the candidate's outcome.
+The project demonstrates firmware validation, inactive-slot programming, post-programming verification, trial boot, application confirmation, and rollback to previously confirmed firmware.
+
+Digital-signature-based firmware authenticity is being evaluated as a security enhancement to the existing implementation.
+
 
 ## Project Status
 
@@ -20,14 +23,31 @@ The project demonstrates how a bootloader can validate staged firmware, program 
 - A button-based update notification used as a demonstration substitute for an external communication trigger.
 - ITM/debugger and LED evidence for the main boot, update, integrity, confirmation, and recovery paths.
 
-### Remaining work and limitations
+### Completed analysis and documentation
 
-- Threat modeling and security-hardening review.
-- Documentation aligning relevant IEC 62443 cybersecurity practices and ISO 26262 safety concepts with the project. This is not formal certification or a full compliance assessment.
-- Final unit-test coverage review and consolidated project documentation.
-- Digital-signature verification and trusted-key management.
-- A production communication/download mechanism; the current button trigger is a demonstration substitute.
-- Additional resilience work and testing for actual power interruption during flash operations and metadata writes.
+- Threat modeling and security analysis for the project scope.
+- Unit testing for the defined test scope, with recorded results.
+- Project-level IEC 62443 alignment assessment covering selected cybersecurity concepts, implemented mechanisms, verification evidence, and identified gaps.
+- Documentation of the firmware architecture, update flow, validation behavior, recovery mechanisms, and known limitations.
+
+### Planned Security Enhancement
+
+- Digital-signature-based firmware authenticity verification.
+- ECDSA P-256 with SHA-256 identified as the preferred algorithm.
+- Trusted public-key provisioning and bootloader-side signature verification.
+- Cryptographic authenticity validation before firmware activation.
+
+The design is documented separately. Implementation and hardware validation are pending.
+
+### Known limitations and out-of-scope enhancements
+
+- Digital-signature verification and trusted public-key management are not yet implemented. ECDSA P-256 with SHA-256 is the preferred design candidate, subject to cryptographic-library evaluation and STM32F407 hardware benchmarking.
+- A production communication and firmware-download mechanism is not implemented; the current button trigger and pre-staged firmware demonstrate the update workflow.
+- Cryptographically protected anti-rollback enforcement is not implemented.
+- Authenticated metadata and resilience to actual power interruption during flash operations and metadata writes are not established.
+- When the selected active image fails SHA-256 verification, the bootloader enters BootSafe/fail-safe behavior rather than automatically trying the alternate slot.
+
+These limitations are documented boundaries of the current project. They do not represent pending implementation or testing tasks for this release.
 
 ## Architecture Overview
 
@@ -251,8 +271,13 @@ These future tasks should be evaluated against the intended product context and 
 - **Host metadata tool:** `Tools/prepare_slot_metadata.py`.
 - **Validation records:** Test cases and supporting evidence maintained separately.
 
+
 ## Project Goal
 
-This project demonstrates practical embedded firmware engineering across memory layout, linker configuration, SHA-256 integrity checks, flash programming, metadata journaling, bootloader/application handover, A/B update handling, watchdog-driven recovery, and evidence-based testing.
+This project demonstrates practical embedded firmware engineering across memory layout, linker configuration, SHA-256 integrity checks, flash programming, metadata journaling, bootloader/application handover, A/B firmware updates, watchdog-driven recovery, and evidence-based testing.
 
-The remaining work focuses on threat analysis, standards-oriented documentation, further unit-test review, and extending integrity protection to cryptographic firmware authenticity.
+The current implementation includes firmware integrity verification, dual-slot update management, candidate confirmation, rollback, threat analysis, functional testing, and an IEC 62443-oriented cybersecurity assessment.
+
+Future security enhancements include digital-signature-based firmware authenticity, cryptographically enforced anti-rollback protection, authenticated metadata, production firmware-download transport, and power-loss resilience testing.
+
+The project is presented as an engineering portfolio demonstration, not as a formally certified or standards-compliant product.
