@@ -125,7 +125,7 @@ void Error_Handler(void);
 #define MEMS_INT2_GPIO_Port GPIOE
 
 /* USER CODE BEGIN Private defines */
-#define FIRMWARE_TARGET_SLOT_B
+#define FIRMWARE_TARGET_SLOT_A
 
 #if defined(FIRMWARE_TARGET_SLOT_A)
 #define CURRENT_SLOT_NAME "SLOT A"

@@ -155,7 +155,7 @@ int main(void)
 		HAL_IWDG_Refresh(&hiwdg);
 	}
 
-	HAL_GPIO_TogglePin(GPIOD, ORANGE_LED);
+	HAL_GPIO_TogglePin(GPIOD, BLUE_LED);
     HAL_Delay(250);
   }
   /* USER CODE END 3 */

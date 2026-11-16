@@ -1,3 +1,21 @@
+/******************/Record 11/*******************/ 
+Date and Time: 13/10/2026: 5:10PM 
+FIRMWARE_TARGET_SLOT: B 
+STM32F407VGTX_FLASH.ld: FLASH (rx): ORIGIN = 0x08040000,   LENGTH = 128K(line 50)
+core/Src/system_stm32f4xx.c: #define VECT_TAB_OFFSET  0x00040000U (line 95)
+LED Combination: ORANGE (250ms)
+
+Version: 16
+
+/******************/Record 10/*******************/ 
+Date and Time: 13/10/2026: 16:51PM 
+FIRMWARE_TARGET_SLOT: A 
+STM32F407VGTX_FLASH.ld: FLASH (rx): ORIGIN = 0x08020000,   LENGTH = 128K(line 50)
+core/Src/system_stm32f4xx.c: #define VECT_TAB_OFFSET  0x00020000U (line 95)
+LED Combination: Blue (250ms)
+
+Version: 15
+
 /******************/Record 9/*******************/ 
 Date and Time: 10/10/2026: 12:36AM 
 FIRMWARE_TARGET_SLOT: B 
